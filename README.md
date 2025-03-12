@@ -3,7 +3,11 @@
 A simple to use `progress_bar` in sub-processes or threads using [rich](https://github.com/Textualize/rich). 
 See the [examples](./src/multiprogress/examples) folder for more examples.
 
+## Demo Video
+
 [![demo](https://asciinema.org/a/85R4jTtjKVRIYXTcKCNq0vzYH.svg)](https://asciinema.org/a/FtueDHOSfvf4J30JNdPQnGNHg?autoplay=1)
+
+## Example
 
 ```python
 import time
