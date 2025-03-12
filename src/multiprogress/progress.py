@@ -29,6 +29,9 @@ from rich.progress import (
 
 DONE: Final = "DONE"
 HELLO: Final = "HELLO"
+LOCALHOST: Final = "localhost"
+PORT: Final = 6000
+AUTH_KEY: Final = b"progress-bar-secret-key"
 
 
 class ProgressInitializationError(Exception):
@@ -142,9 +145,7 @@ class MultiProcessProgress(Progress):
                     break
 
         def server():
-            listener = Listener(
-                ("localhost", 6000), authkey=b"secret password", backlog=50
-            )
+            listener = Listener((LOCALHOST, PORT), authkey=AUTH_KEY, backlog=1000)
             while True:
                 conn = listener.accept()  # this will block forever
                 msg = conn.recv()
@@ -164,7 +165,7 @@ class MultiProcessProgress(Progress):
 
     def __exit__(self, *args, **kwargs):
         super().__exit__(*args, **kwargs)
-        with Client(("localhost", 6000), authkey=b"secret password") as conn:
+        with Client((LOCALHOST, PORT), authkey=AUTH_KEY) as conn:
             conn.send(DONE)
         self._server.join()
 
@@ -185,7 +186,7 @@ def progress_bar(
     """
     if not id:
         id = str(threading.get_ident())
-    with Client(("localhost", 6000), authkey=b"secret password") as conn:
+    with Client((LOCALHOST, PORT), authkey=AUTH_KEY) as conn:
         conn.send(HELLO)
         conn.send(
             AddTaskMessage(
