@@ -83,7 +83,13 @@ class MultiProcessProgress(Progress):
 
     """
 
-    def __init__(self, *args, refresh_every_n_secs: Optional[float] = None, **kwargs):
+    def __init__(
+        self,
+        *args,
+        refresh_every_n_secs: Optional[float] = None,
+        live_mode: bool = True,
+        **kwargs,
+    ):
         super().__init__(
             TextColumn("{task.description} {task.percentage:>3.0f}%"),
             BarColumn(),
@@ -97,6 +103,7 @@ class MultiProcessProgress(Progress):
             refresh_per_second=1 / refresh_every_n_secs if refresh_every_n_secs else 10,
         )
         self._initial_columns: Collection[Union[str, ProgressColumn]] = self.columns
+        self._live = live_mode
 
     def get_renderables(self) -> Iterable[RenderableType]:
         for task in self.tasks:
@@ -118,7 +125,8 @@ class MultiProcessProgress(Progress):
     def __enter__(self):
         self._id_to_task_id: Dict[Tuple[int, str], TaskID] = {}
         self._ids: List[str] = []
-        super().__enter__()
+        if self._live:
+            super().__enter__()
 
         def handle_client(conn: Connection):
             while True:
