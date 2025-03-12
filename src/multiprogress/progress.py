@@ -1,10 +1,7 @@
 import os
-import random
 import threading
-import time
-from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
-from multiprocessing.connection import Connection, Listener, Client, wait
+from multiprocessing.connection import Connection, Listener, Client
 from typing import (
     Any,
     Callable,
@@ -14,7 +11,6 @@ from typing import (
     List,
     Optional,
     Tuple,
-    TypeVar,
     Union,
     Final,
 )
@@ -187,6 +183,8 @@ def progress_bar(
     """
     Used within a MultiProcessProgress context to report progress of an iterable to the parent (or same) process.
     """
+    if not id:
+        id = str(threading.get_ident())
     with Client(("localhost", 6000), authkey=b"secret password") as conn:
         conn.send(HELLO)
         conn.send(
@@ -201,7 +199,10 @@ def progress_bar(
         for i, r in enumerate(iterable):
             conn.send(
                 ProgressUpdateMessage(
-                    pid=os.getpid(), id=id, metrics=metrics_func(), completed=i + 1
+                    pid=os.getpid(),
+                    id=id,
+                    metrics=metrics_func(),
+                    completed=i + 1,
                 )
             )
             yield r
@@ -213,21 +214,3 @@ def progress_bar(
                 completed=total or len(iterable),
             )
         )
-
-
-def do_work(n: int) -> int:
-    sleep_for = random.randint(0, 2)
-    for _ in progress_bar(
-        range(1, n + 2), desc=f"Sleeping for {sleep_for} secs for each {n} iterations."
-    ):
-        time.sleep(sleep_for)
-    return sleep_for
-
-
-def demo():
-    with ProcessPoolExecutor() as p, MultiProcessProgress():
-        print(list(p.map(do_work, range(10))))
-
-
-if __name__ == "__main__":
-    demo()

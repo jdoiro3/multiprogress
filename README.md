@@ -1,12 +1,13 @@
 # Multiprogress
 
-A simple to use `progress_bar` in sub-processes using [rich](https://github.com/Textualize/rich).
+A simple to use `progress_bar` in sub-processes or threads using [rich](https://github.com/Textualize/rich).
 
 ```python
 import time
 import random
 from concurrent.futures import ProcessPoolExecutor
 from multiprogress import MultiProcessProgress, progress_bar
+
 
 def do_work(n: int) -> int:
     sleep_for = random.randint(0, 2)
