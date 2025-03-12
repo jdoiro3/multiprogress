@@ -1,6 +1,6 @@
 # Multiprogress
 
-A simple to use `progress_bar` in sub-processes.
+A simple to use `progress_bar` in sub-processes using [rich](https://github.com/Textualize/rich).
 
 ```python
 import time
