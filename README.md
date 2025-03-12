@@ -1,6 +1,10 @@
 # Multiprogress
 
-A simple to use `progress_bar` in sub-processes or threads using [rich](https://github.com/Textualize/rich).
+A simple to use `progress_bar` in sub-processes or threads using [rich](https://github.com/Textualize/rich). 
+See the [examples](./src/multiprogress/examples) folder for more examples.
+
+[![asciinema CLI
+demo]([[https://asciinema.org/a/85R4jTtjKVRIYXTcKCNq0vzYH.svg](https://asciinema.org/a/FtueDHOSfvf4J30JNdPQnGNHg](https://asciinema.org/a/85R4jTtjKVRIYXTcKCNq0vzYH.svg)))]([https://asciinema.org/a/85R4jTtjKVRIYXTcKCNq0vzYH](https://asciinema.org/a/FtueDHOSfvf4J30JNdPQnGNHg)?autoplay=1)
 
 ```python
 import time
