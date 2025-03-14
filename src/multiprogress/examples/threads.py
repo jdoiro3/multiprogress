@@ -1,7 +1,7 @@
 import time
 import random
 from concurrent.futures import ThreadPoolExecutor
-from multiprogress import MultiProcessProgress, progress_bar
+from multiprogress import MultiProgress, progress_bar
 
 
 def do_work(n: int) -> int:
@@ -14,7 +14,7 @@ def do_work(n: int) -> int:
 
 
 def demo():
-    with ThreadPoolExecutor() as t, MultiProcessProgress():
+    with ThreadPoolExecutor() as t, MultiProgress():
         print(list(t.map(do_work, range(10))))
 
 

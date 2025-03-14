@@ -1,7 +1,7 @@
 import time
 import random
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
-from multiprogress import MultiProcessProgress, progress_bar
+from multiprogress import MultiProgress, progress_bar
 from itertools import chain
 from rich import print
 from rich.layout import Layout
@@ -22,8 +22,8 @@ def do_work(n: int, key: str) -> int:
 
 
 def demo():
-    progress_p = MultiProcessProgress(key="process", live_mode=False, transient=True)
-    progress_t = MultiProcessProgress(key="thread", live_mode=False, transient=True)
+    progress_p = MultiProgress(key="process", live_mode=False, transient=True)
+    progress_t = MultiProgress(key="thread", live_mode=False, transient=True)
     layout = Layout()
     layout.split_column(
         Layout(Panel(progress_p, title="processes"), name="top"),

@@ -91,7 +91,7 @@ class ProgressUpdateMessage:
     id: str
 
 
-class MultiProcessProgress(Progress):
+class MultiProgress(Progress):
     """
     An extended rich.Progress that can report progress of forked sub-processes. The
     process reporting progress can also be the same process.
@@ -99,7 +99,7 @@ class MultiProcessProgress(Progress):
     Example:
 
     ```python
-    from .progress_bar import MultiProcessProgress, progress_bar
+    from .progress_bar import MultiProgress, progress_bar
     import multiprocessing as mp
     import time
 
@@ -107,7 +107,7 @@ class MultiProcessProgress(Progress):
         for _ in progress_bar(range(x), desc=f"Iterating {x} times..."):
             time.sleep(.1)
 
-    with futures.ProcessPoolExecutor() as p, MultiProcessProgress():
+    with futures.ProcessPoolExecutor() as p, MultiProgress():
         p.map(foo, (50, 100, 500))
     ```
 
@@ -230,7 +230,7 @@ def progress_bar(
     key: str = "main",
 ):
     """
-    Used within a MultiProcessProgress context to report progress of an iterable to the parent (or same) process.
+    Used within a MultiProgress context to report progress of an iterable to the parent (or same) process.
     """
     if not id:
         id = str(threading.get_ident())

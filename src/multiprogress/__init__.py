@@ -1,3 +1,3 @@
-__all__ = ["progress_bar", "MultiProcessProgress"]
+__all__ = ["progress_bar", "MultiProgress"]
 
-from multiprogress.progress import progress_bar, MultiProcessProgress
+from multiprogress.progress import progress_bar, MultiProgress

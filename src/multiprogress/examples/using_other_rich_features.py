@@ -3,7 +3,7 @@ from rich.console import Console, Group
 from rich.live import Live
 from rich.panel import Panel
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from multiprogress import MultiProcessProgress, progress_bar
+from multiprogress import MultiProgress, progress_bar
 import random
 
 
@@ -18,7 +18,7 @@ def work(status_name: str) -> str:
 def demo():
     console = Console()
     status = console.status("Working on tasks...")
-    with ProcessPoolExecutor() as p, MultiProcessProgress(
+    with ProcessPoolExecutor() as p, MultiProgress(
         transient=True, live_mode=False
     ) as mp, Live(Panel(Group(status, mp))):
         futures = [
