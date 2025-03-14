@@ -36,8 +36,8 @@ def demo():
 
 > [!Note]
 > The `progress_bar` doesn't need to know about the `MultiProgress` instance.
-> The only time the two components will need to be aware of one another is in the case
-> of multiple instances of `MultiProgress` being used in the main process. In that case
+> The only time the two components will need to be aware of one another is the case
+> of multiple instances of `MultiProgress` being used in the main process. In such cases
 > you will use a `key` (a `string`) to send progress updates to the correct instance.
 
 ```python
