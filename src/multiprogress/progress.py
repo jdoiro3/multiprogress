@@ -127,7 +127,6 @@ class MultiProcessProgress(Progress):
         if not self.__class__._FIRST_INSTANCE:
             self.__class__._PORT += 1
         self.__class__._FIRST_INSTANCE = False
-        print(f"{os.getpid()}: persiting port: {self.__class__._PORT}")
         persist_key_to_port(key, self.__class__._PORT)
         self.PORT = self.__class__._PORT
         super().__init__(
@@ -193,7 +192,6 @@ class MultiProcessProgress(Progress):
                     break
 
         def server():
-            print(f"{os.getpid()}: {self.PORT}")
             listener = Listener((LOCALHOST, self.PORT), authkey=AUTH_KEY, backlog=1000)
             while True:
                 conn = listener.accept()  # this will block forever
