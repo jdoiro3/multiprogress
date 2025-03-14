@@ -14,6 +14,9 @@ from typing import (
     Union,
     Final,
 )
+import tempfile
+from pathlib import Path
+import pickle
 
 from rich.console import RenderableType
 from rich.progress import (
@@ -26,12 +29,21 @@ from rich.progress import (
     TimeRemainingColumn,
     ProgressColumn,
 )
+import atexit
 
 DONE: Final = "DONE"
 HELLO: Final = "HELLO"
 LOCALHOST: Final = "localhost"
 PORT: Final = 6000
 AUTH_KEY: Final = b"progress-bar-secret-key"
+
+PROGRESS_KEYS_TO_PORTS_FILE = (
+    Path(tempfile.gettempdir()) / "progress_keys_to_ports.pickle"
+)
+if not PROGRESS_KEYS_TO_PORTS_FILE.exists():
+    with open(PROGRESS_KEYS_TO_PORTS_FILE, "wb+") as f:
+        pickle.dump({}, f)
+    atexit.register(PROGRESS_KEYS_TO_PORTS_FILE.unlink)
 
 
 class ProgressInitializationError(Exception):
@@ -42,6 +54,24 @@ def join(items, sep):
     r = [sep] * (len(items) * 2 - 1)
     r[0::2] = items
     return r
+
+
+def persist_key_to_port(key: str, port: int) -> None:
+    with open(PROGRESS_KEYS_TO_PORTS_FILE, "rb") as f:
+        keys_to_ports: dict = pickle.load(f)
+    if key in keys_to_ports:
+        raise ValueError(
+            f"{key} is not a unique progress key. Current keys are: {keys_to_ports.keys()}."
+        )
+    keys_to_ports[key] = port
+    with open(PROGRESS_KEYS_TO_PORTS_FILE, "wb") as f:
+        pickle.dump(keys_to_ports, f)
+
+
+def get_port(key: str) -> int:
+    with open(PROGRESS_KEYS_TO_PORTS_FILE, "rb") as f:
+        keys_to_ports: dict = pickle.load(f)
+    return keys_to_ports[key]
 
 
 @dataclass
@@ -83,13 +113,23 @@ class MultiProcessProgress(Progress):
 
     """
 
+    _PORT = PORT
+    _FIRST_INSTANCE = True
+
     def __init__(
         self,
         *args,
         refresh_every_n_secs: Optional[float] = None,
         live_mode: bool = True,
+        key: str = "main",
         **kwargs,
     ):
+        if not self.__class__._FIRST_INSTANCE:
+            self.__class__._PORT += 1
+        self.__class__._FIRST_INSTANCE = False
+        print(f"{os.getpid()}: persiting port: {self.__class__._PORT}")
+        persist_key_to_port(key, self.__class__._PORT)
+        self.PORT = self.__class__._PORT
         super().__init__(
             TextColumn("{task.description} {task.percentage:>3.0f}%"),
             BarColumn(),
@@ -153,7 +193,8 @@ class MultiProcessProgress(Progress):
                     break
 
         def server():
-            listener = Listener((LOCALHOST, PORT), authkey=AUTH_KEY, backlog=1000)
+            print(f"{os.getpid()}: {self.PORT}")
+            listener = Listener((LOCALHOST, self.PORT), authkey=AUTH_KEY, backlog=1000)
             while True:
                 conn = listener.accept()  # this will block forever
                 msg = conn.recv()
@@ -173,7 +214,7 @@ class MultiProcessProgress(Progress):
 
     def __exit__(self, *args, **kwargs):
         super().__exit__(*args, **kwargs)
-        with Client((LOCALHOST, PORT), authkey=AUTH_KEY) as conn:
+        with Client((LOCALHOST, self.PORT), authkey=AUTH_KEY) as conn:
             conn.send(DONE)
         self._server.join()
 
@@ -188,13 +229,14 @@ def progress_bar(
     total: int | None = None,
     metrics_func: Callable[[], Dict[str, Any]] = empty,
     id: str = "",
+    key: str = "main",
 ):
     """
     Used within a MultiProcessProgress context to report progress of an iterable to the parent (or same) process.
     """
     if not id:
         id = str(threading.get_ident())
-    with Client((LOCALHOST, PORT), authkey=AUTH_KEY) as conn:
+    with Client((LOCALHOST, get_port(key)), authkey=AUTH_KEY) as conn:
         conn.send(HELLO)
         conn.send(
             AddTaskMessage(

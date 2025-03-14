@@ -1,7 +1,7 @@
 [project]
 name = "multiprogress"
 version = "0.1.0"
-description = "Add your description here"
+description = "Simple to use progress bar with multiprocessing."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

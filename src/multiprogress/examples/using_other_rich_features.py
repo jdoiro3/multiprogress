@@ -1,5 +1,4 @@
 import time
-from rich.progress import Progress
 from rich.console import Console, Group
 from rich.live import Live
 from rich.panel import Panel
