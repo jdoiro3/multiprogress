@@ -6,7 +6,6 @@ from itertools import chain
 from rich import print
 from rich.layout import Layout
 from rich.panel import Panel
-from rich.console import Group
 from rich.live import Live
 
 
