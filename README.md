@@ -24,6 +24,12 @@ def demo():
         print(list(p.map(do_work, range(10))))
 ```
 
+## Install
+
+```
+pip install multiprog
+```
+
 ### Using Other Rich Features
 
 > [!Note]
