@@ -1,11 +1,11 @@
 [project]
 name = "multiprog"
-version = "0.1.1"
+version = "0.1.2"
 description = "Simple to use progress bar with subprocesses and threads."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "rich>=13.9.4",
+    "rich>=12.0.0",
 ]
 
 [project.scripts]

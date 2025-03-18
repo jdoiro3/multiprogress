@@ -7,16 +7,19 @@ from rich import print
 from rich.layout import Layout
 from rich.panel import Panel
 from rich.live import Live
+import os
 
 
 def do_work(n: int, key: str) -> int:
-    sleep_for = random.randint(0, 2)
+    sleep_for = random.random()
+    pid = os.getpid()
     for _ in progress_bar(
         range(1, n + 2),
-        desc=f"Sleeping for {sleep_for} secs for each {n} iterations.",
+        desc=f"Sleeping for {sleep_for:.2f} secs for each {n} iterations.",
         key=key,
+        metrics_func=lambda: {"pid": f"[color({pid % 250})]{pid}"},
     ):
-        time.sleep(sleep_for)
+        time.sleep(1 * sleep_for)
     return n
 
 

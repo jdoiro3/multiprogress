@@ -136,7 +136,7 @@ class MultiProgress(Progress):
             TextColumn("•"),
             TimeElapsedColumn(),
             TextColumn("•"),
-            TimeRemainingColumn(),
+            TimeRemainingColumn(compact=True),
             *args,
             **kwargs,
             refresh_per_second=1 / refresh_every_n_secs if refresh_every_n_secs else 10,
@@ -218,7 +218,7 @@ class MultiProgress(Progress):
 
 
 def empty() -> Dict[str, Any]:
-    return {}
+    return dict()
 
 
 def progress_bar(
