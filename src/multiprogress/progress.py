@@ -68,6 +68,16 @@ def persist_key_to_port(key: str, port: int) -> None:
         pickle.dump(keys_to_ports, f)
 
 
+def remove_key(key: str) -> None:
+    with open(PROGRESS_KEYS_TO_PORTS_FILE, "rb") as f:
+        keys_to_ports: dict = pickle.load(f)
+    if key not in keys_to_ports:
+        raise ValueError(f"{key} is not a key in: {keys_to_ports.keys()}.")
+    keys_to_ports.pop(key)
+    with open(PROGRESS_KEYS_TO_PORTS_FILE, "wb") as f:
+        pickle.dump(keys_to_ports, f)
+
+
 def get_port(key: str) -> int:
     with open(PROGRESS_KEYS_TO_PORTS_FILE, "rb") as f:
         keys_to_ports: dict = pickle.load(f)
@@ -127,7 +137,8 @@ class MultiProgress(Progress):
         if not self.__class__._FIRST_INSTANCE:
             self.__class__._PORT += 1
         self.__class__._FIRST_INSTANCE = False
-        persist_key_to_port(key, self.__class__._PORT)
+        self.key = key
+        persist_key_to_port(self.key, self.__class__._PORT)
         self.PORT = self.__class__._PORT
         super().__init__(
             TextColumn("{task.description} {task.percentage:>3.0f}%"),
@@ -211,6 +222,7 @@ class MultiProgress(Progress):
         return self
 
     def __exit__(self, *args, **kwargs):
+        remove_key(self.key)
         super().__exit__(*args, **kwargs)
         with Client((LOCALHOST, self.PORT), authkey=AUTH_KEY) as conn:
             conn.send(DONE)
