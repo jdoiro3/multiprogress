@@ -13,6 +13,7 @@ from typing import (
     Tuple,
     Union,
     Final,
+    TypeVar
 )
 import tempfile
 from pathlib import Path
@@ -37,6 +38,8 @@ LOCALHOST: Final = "localhost"
 PORT: Final = 6000
 AUTH_KEY: Final = b"progress-bar-secret-key"
 
+T = TypeVar("T")
+
 PROGRESS_KEYS_TO_PORTS_FILE = (
     Path(tempfile.gettempdir()) / "progress_keys_to_ports.pickle"
 )
@@ -50,7 +53,7 @@ class ProgressInitializationError(Exception):
     pass
 
 
-def join(items, sep):
+def join(items: List[T], sep: T) -> List[T]:
     r = [sep] * (len(items) * 2 - 1)
     r[0::2] = items
     return r
@@ -234,16 +237,21 @@ def empty() -> Dict[str, Any]:
 
 
 def progress_bar(
-    iterable: Any,
+    iterable: Iterable[T],
     desc: str,
     total: int | None = None,
     metrics_func: Callable[[], Dict[str, Any]] = empty,
     id: str = "",
     key: str = "main",
-):
+) -> Iterable[T]:
     """
     Used within a MultiProgress context to report progress of an iterable to the parent (or same) process.
     """
+    if total is None:
+        if isinstance(iterable, (list, tuple, dict, set)):
+            total = len(iterable)
+        else:
+            raise ValueError(f"total must be supplied if the iterable's length can't be determined.")
     if not id:
         id = str(threading.get_ident())
     with Client((LOCALHOST, get_port(key)), authkey=AUTH_KEY) as conn:
@@ -252,7 +260,7 @@ def progress_bar(
             AddTaskMessage(
                 desc=desc,
                 metrics=metrics_func(),
-                total=total or len(iterable),
+                total=total,
                 pid=os.getpid(),
                 id=id,
             )
@@ -272,6 +280,6 @@ def progress_bar(
                 pid=os.getpid(),
                 id=id,
                 metrics=metrics_func(),
-                completed=total or len(iterable),
+                completed=total,
             )
         )
