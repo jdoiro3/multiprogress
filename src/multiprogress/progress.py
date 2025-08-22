@@ -2,6 +2,7 @@ import os
 import threading
 from dataclasses import dataclass
 from multiprocessing.connection import Connection, Listener, Client
+from collections.abc import Sized
 from typing import (
     Any,
     Callable,
@@ -69,7 +70,6 @@ def persist_key_to_port(key: str, port: int) -> None:
             f"{key} is not a unique progress key. Current keys are: {keys_to_ports.keys()}."
         )
     keys_to_ports[key] = port
-    print(keys_to_ports)
     with open(PROGRESS_KEYS_TO_PORTS_FILE, "wb") as f:
         pickle.dump(keys_to_ports, f)
 
@@ -136,12 +136,30 @@ class MultiProgress(Progress):
     _PORT = PORT
     _FIRST_INSTANCE = True
 
+    def get_renderables(self) -> Iterable[RenderableType]:
+        for task in self.tasks:
+            self.columns = (
+                *self._initial_columns,
+                TextColumn("•"),
+                *join(
+                    [
+                        TextColumn(f"{v} {k}")
+                        for k, v in sorted(
+                            task.fields.items(), key=lambda item: item[0]
+                        )
+                    ],
+                    TextColumn("•"),
+                ),
+            )
+            yield self.make_tasks_table([task])
+
     def __new__(cls, *args, **kwargs) -> "MultiProgress":
         if not cls._FIRST_INSTANCE:
             cls._PORT += 1
         cls._FIRST_INSTANCE = False
 
         self = super().__new__(cls)
+        self._called = False
         self.live_mode = True
         self._key = "main"
         self._port = cls._PORT
@@ -149,6 +167,7 @@ class MultiProgress(Progress):
         return self
 
     def __call__(self, key: str = "main", live_mode: bool = True) -> "MultiProgress":
+        self._called = True
         self._key = key
         self.live_mode = live_mode
         persist_key_to_port(self._key, self._port)
@@ -157,6 +176,11 @@ class MultiProgress(Progress):
     def __enter__(self) -> "MultiProgress":
         self._id_to_task_id: Dict[Tuple[int, str], TaskID] = {}
         self._ids: List[str] = []
+        self._initial_columns = self.columns
+
+        if not self._called:
+            self.__call__()
+
         if self.live_mode:
             super().__enter__()
 
@@ -212,6 +236,7 @@ class MultiProgress(Progress):
 
     def __exit__(self, *args, **kwargs) -> None:
         remove_key(self._key)
+        self._called = False
         super().__exit__(*args, **kwargs)
         with Client((LOCALHOST, self._port), authkey=AUTH_KEY) as conn:
             conn.send(DONE)
@@ -249,12 +274,13 @@ def add_task(
                 desc: str | None = None,
                 visible: bool = True,
                 refresh: bool = False,
+                **metrics: dict[str, Any]
             ) -> None:
                 conn.send(
                     ProgressUpdateMessage(
                         pid=os.getpid(),
                         id=id,
-                        metrics=metrics_func(),
+                        metrics=metrics,
                         completed=completed,
                         advance=advance,
                         desc=desc,
@@ -279,6 +305,9 @@ def progress_bar(
     """
     Used within a MultiProgress context to report progress of an iterable to the parent (or same) process.
     """
+    if total is None and isinstance(iterable, Sized):
+        total = len(iterable)
+        
     if not id:
         id = str(threading.get_ident())
 
