@@ -34,11 +34,11 @@ def demo():
         Layout(Panel(progress_t, title="threads"), name="bottom"),
     )
     with (
-        ThreadPoolExecutor() as t, 
-        ProcessPoolExecutor() as p, 
-        progress_p(key="process", live_mode=False), 
-        progress_t(key="thread", live_mode=False), 
-        Live(layout)
+        ThreadPoolExecutor() as t,
+        ProcessPoolExecutor() as p,
+        progress_p(key="process", live_mode=False),
+        progress_t(key="thread", live_mode=False),
+        Live(layout),
     ):
         p_futures = [p.submit(do_work, i, "process") for i in range(1, 10)]
         t_futures = [t.submit(do_work, i, "thread") for i in range(1, 10)]

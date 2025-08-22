@@ -111,7 +111,6 @@ class ProgressUpdateMessage:
     refresh: bool = False
 
 
-
 class MultiProgress(Progress):
     """
     An extended rich.Progress that can report progress of forked sub-processes. The
@@ -146,9 +145,8 @@ class MultiProgress(Progress):
         self.live_mode = True
         self._key = "main"
         self._port = cls._PORT
-        
+
         return self
-    
 
     def __call__(self, key: str = "main", live_mode: bool = True) -> "MultiProgress":
         self._key = key
@@ -156,7 +154,6 @@ class MultiProgress(Progress):
         persist_key_to_port(self._key, self._port)
         return self
 
-    
     def __enter__(self) -> "MultiProgress":
         self._id_to_task_id: Dict[Tuple[int, str], TaskID] = {}
         self._ids: List[str] = []
@@ -262,14 +259,14 @@ def add_task(
                         advance=advance,
                         desc=desc,
                         visible=visible,
-                        refresh=refresh
+                        refresh=refresh,
                     )
                 )
-            
+
             yield update
     finally:
         ...
-        
+
 
 def progress_bar(
     iterable: Iterable[T],
@@ -289,4 +286,3 @@ def progress_bar(
         for r in iterable:
             update(advance=1)
             yield r
-
