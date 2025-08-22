@@ -9,8 +9,9 @@ import random
 
 def work(status_name: str) -> str:
     for _ in progress_bar(
-        range(random.randint(2, 40)), desc=f"Working on task for {status_name}",
-        metrics_func=lambda: dict(name="Joe")
+        range(random.randint(2, 40)),
+        desc=f"Working on task for {status_name}",
+        metrics_func=lambda: dict(name="Joe"),
     ):
         time.sleep(random.random() * 2)
     return status_name
@@ -20,9 +21,9 @@ def demo():
     console = Console()
     status = console.status("Working on tasks...")
     with (
-        ProcessPoolExecutor() as p, 
-        MultiProgress(transient=True)(live_mode=False) as mp, 
-        Live(Panel(Group(status, mp)))
+        ProcessPoolExecutor() as p,
+        MultiProgress(transient=True)(live_mode=False) as mp,
+        Live(Panel(Group(status, mp))),
     ):
         futures = [
             p.submit(work, status_name)

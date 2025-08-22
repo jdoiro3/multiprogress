@@ -18,7 +18,6 @@ def do_work(n: int) -> int:
 def demo():
     with ProcessPoolExecutor() as p, MultiProgress(
         *MultiProgress.get_default_columns(),
-        
     ):
         print(list(p.map(do_work, range(10))))
 

@@ -176,7 +176,7 @@ class MultiProgress(Progress):
     def __enter__(self) -> "MultiProgress":
         self._id_to_task_id: Dict[Tuple[int, str], TaskID] = {}
         self._ids: List[str] = []
-        self._initial_columns = self.columns
+        self._initial_columns: tuple[str | ProgressColumn, ...] = self.columns
 
         if not self._called:
             self.__call__()
@@ -274,7 +274,7 @@ def add_task(
                 desc: str | None = None,
                 visible: bool = True,
                 refresh: bool = False,
-                **metrics: dict[str, Any]
+                **metrics: dict[str, Any],
             ) -> None:
                 conn.send(
                     ProgressUpdateMessage(
@@ -307,7 +307,7 @@ def progress_bar(
     """
     if total is None and isinstance(iterable, Sized):
         total = len(iterable)
-        
+
     if not id:
         id = str(threading.get_ident())
 
