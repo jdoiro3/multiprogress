@@ -19,7 +19,7 @@ def do_work(n: int, key: str) -> int:
         total=len(nums),
         desc=f"Sleeping for {sleep_for:.2f} secs for each {n} iterations.",
         key=key,
-        metrics_func=lambda: {"pid": f"[color({pid % 250})]{pid}"},
+        metrics_func=lambda: dict(pid=f"[color({pid % 250})]{pid}"),
     ):
         time.sleep(1 * sleep_for)
     return n

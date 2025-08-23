@@ -6,7 +6,6 @@ from collections.abc import Sized
 from typing import (
     Any,
     Callable,
-    Collection,
     Dict,
     Iterable,
     List,
@@ -15,7 +14,6 @@ from typing import (
     Union,
     Final,
     TypeVar,
-    Type,
 )
 import tempfile
 from pathlib import Path
@@ -23,13 +21,9 @@ import pickle
 
 from rich.console import RenderableType
 from rich.progress import (
-    BarColumn,
-    MofNCompleteColumn,
     Progress,
     TaskID,
     TextColumn,
-    TimeElapsedColumn,
-    TimeRemainingColumn,
     ProgressColumn,
 )
 import atexit
@@ -93,7 +87,7 @@ def get_port(key: str) -> int:
 @dataclass
 class AddTaskMessage:
     desc: str
-    metrics: Dict[str, Any]
+    fields: Dict[str, Any]
     total: float | None
     pid: int
     id: str
@@ -103,7 +97,7 @@ class AddTaskMessage:
 class ProgressUpdateMessage:
     id: str
     pid: int
-    metrics: Dict[str, Any]
+    fields: Dict[str, Any]
     completed: float | None = None
     advance: float | None = None
     desc: str | None = None
@@ -193,7 +187,7 @@ class MultiProgress(Progress):
                     ] = conn.recv()
                     if isinstance(msg, AddTaskMessage):
                         task_id = self.add_task(
-                            description=msg.desc, total=msg.total, **msg.metrics
+                            description=msg.desc, total=msg.total, **msg.fields
                         )
                         if msg.id in self._ids:
                             raise ProgressInitializationError(
@@ -205,7 +199,10 @@ class MultiProgress(Progress):
                             self._id_to_task_id[(msg.pid, msg.id)],
                             completed=msg.completed,
                             advance=msg.advance,
-                            **msg.metrics,
+                            description=msg.desc,
+                            visible=msg.visible,
+                            refresh=msg.refresh,
+                            **msg.fields,
                         )
                 except EOFError:
                     break
@@ -251,17 +248,18 @@ def empty() -> Dict[str, Any]:
 def add_task(
     desc: str,
     total: int | None = None,
-    metrics_func: Callable[[], Dict[str, Any]] = empty,
     id: str = "",
     key: str = "main",
+    **fields: Any,
 ):
+    id = id or str(threading.get_ident())
     try:
         with Client((LOCALHOST, get_port(key)), authkey=AUTH_KEY) as conn:
             conn.send(HELLO)
             conn.send(
                 AddTaskMessage(
                     desc=desc,
-                    metrics=metrics_func(),
+                    fields=fields,
                     total=total,
                     pid=os.getpid(),
                     id=id,
@@ -274,13 +272,13 @@ def add_task(
                 desc: str | None = None,
                 visible: bool = True,
                 refresh: bool = False,
-                **metrics: dict[str, Any],
+                **fields: Any,
             ) -> None:
                 conn.send(
                     ProgressUpdateMessage(
                         pid=os.getpid(),
                         id=id,
-                        metrics=metrics,
+                        fields=fields,
                         completed=completed,
                         advance=advance,
                         desc=desc,
@@ -308,10 +306,7 @@ def progress_bar(
     if total is None and isinstance(iterable, Sized):
         total = len(iterable)
 
-    if not id:
-        id = str(threading.get_ident())
-
-    with add_task(desc, total, metrics_func, id, key) as update:
+    with add_task(desc, total, id, key, **metrics_func()) as update:
         for r in iterable:
-            update(advance=1)
+            update(advance=1, **metrics_func())
             yield r
