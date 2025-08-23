@@ -5,13 +5,14 @@ from rich.panel import Panel
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from multiprogress import MultiProgress, progress_bar
 import random
+import os
 
 
 def work(status_name: str) -> str:
     for _ in progress_bar(
         range(random.randint(2, 40)),
         desc=f"Working on task for {status_name}",
-        metrics_func=lambda: dict(name="Joe"),
+        metrics_func=lambda: dict(pid=os.getpid()),
     ):
         time.sleep(random.random() * 2)
     return status_name
