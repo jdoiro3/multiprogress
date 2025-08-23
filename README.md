@@ -33,50 +33,48 @@ pip install multiprog
 ### Using Other Rich Features
 
 > [!Note]
-> The `progress_bar` doesn't need to know about the `MultiProgress` instance.
-> The only time the two components will need to be aware of one another is the case
-> of multiple instances of `MultiProgress` being used in the main process. In such cases
-> you will use a `key` (a `string`) to send progress updates to the correct instance.
+> The `progress_bar` function doesn't need to know about the `MultiProgress` instance.
+> The only time the two components will need to share state is the case
+> where multiple instances of `MultiProgress` are being used in the main process. In such cases
+> you will use a `key` to send progress updates to the correct instance.
 
 ```python
 import time
-import random
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
-from multiprogress import MultiProgress, progress_bar
-from itertools import chain
-from rich import print
-from rich.layout import Layout
-from rich.panel import Panel
-from rich.console import Group
+from rich.console import Console, Group
 from rich.live import Live
+from rich.panel import Panel
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from multiprogress import MultiProgress, progress_bar
+import random
 
 
-def do_work(n: int, key: str) -> int:
-    sleep_for = random.randint(0, 2)
+def work(status_name: str) -> str:
     for _ in progress_bar(
-        range(1, n + 2),
-        desc=f"Sleeping for {sleep_for} secs for each {n} iterations.",
-        key=key,
+        range(random.randint(2, 40)),
+        desc=f"Working on task for {status_name}",
+        metrics_func=lambda: dict(name="Joe"),
     ):
-        time.sleep(sleep_for)
-    return n
+        time.sleep(random.random() * 2)
+    return status_name
 
 
 def demo():
-    progress_p = MultiProgress(key="process", live_mode=False, transient=True)
-    progress_t = MultiProgress(key="thread", live_mode=False, transient=True)
-    layout = Layout()
-    layout.split_column(
-        Layout(Panel(progress_p, title="processes"), name="top"),
-        Layout(Panel(progress_t, title="threads"), name="bottom"),
-    )
-    with ThreadPoolExecutor() as t, ProcessPoolExecutor() as p, progress_p, progress_t, Live(
-        layout
+    console = Console()
+    status = console.status("Working on tasks...")
+    with (
+        ProcessPoolExecutor() as p,
+        MultiProgress(transient=True)(live_mode=False) as mp,
+        Live(Panel(Group(status, mp))),
     ):
-        p_futures = [p.submit(do_work, i, "process") for i in range(1, 10)]
-        t_futures = [t.submit(do_work, i, "thread") for i in range(1, 10)]
-        for f in as_completed(chain(p_futures, t_futures)):
-            print(f"Done processing {f.result()}")
+        futures = [
+            p.submit(work, status_name)
+            for status_name in ("status1", "status2", "status3")
+        ]
+        done = []
+        for f in as_completed(futures):
+            done.append(f.result())
+            status.update(f"[bold green]Done tasks: {','.join(done)}")
+        status.update("[bold green]All are done!!!")
 
 
 if __name__ == "__main__":
