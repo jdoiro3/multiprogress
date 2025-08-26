@@ -2,10 +2,10 @@ import os
 import threading
 from dataclasses import dataclass
 from multiprocessing.connection import Connection, Listener, Client
+from collections.abc import Sized
 from typing import (
     Any,
     Callable,
-    Collection,
     Dict,
     Iterable,
     List,
@@ -13,7 +13,7 @@ from typing import (
     Tuple,
     Union,
     Final,
-    TypeVar
+    TypeVar,
 )
 import tempfile
 from pathlib import Path
@@ -21,16 +21,13 @@ import pickle
 
 from rich.console import RenderableType
 from rich.progress import (
-    BarColumn,
-    MofNCompleteColumn,
     Progress,
     TaskID,
     TextColumn,
-    TimeElapsedColumn,
-    TimeRemainingColumn,
     ProgressColumn,
 )
 import atexit
+from contextlib import contextmanager
 
 DONE: Final = "DONE"
 HELLO: Final = "HELLO"
@@ -90,18 +87,22 @@ def get_port(key: str) -> int:
 @dataclass
 class AddTaskMessage:
     desc: str
-    metrics: Dict[str, Any]
-    total: float
+    fields: Dict[str, Any]
+    total: float | None
     pid: int
     id: str
 
 
 @dataclass
 class ProgressUpdateMessage:
-    pid: int
-    metrics: Dict[str, Any]
-    completed: int
     id: str
+    pid: int
+    fields: Dict[str, Any]
+    completed: float | None = None
+    advance: float | None = None
+    desc: str | None = None
+    visible: bool = True
+    refresh: bool = False
 
 
 class MultiProgress(Progress):
@@ -129,35 +130,6 @@ class MultiProgress(Progress):
     _PORT = PORT
     _FIRST_INSTANCE = True
 
-    def __init__(
-        self,
-        *args,
-        refresh_every_n_secs: Optional[float] = None,
-        live_mode: bool = True,
-        key: str = "main",
-        **kwargs,
-    ):
-        if not self.__class__._FIRST_INSTANCE:
-            self.__class__._PORT += 1
-        self.__class__._FIRST_INSTANCE = False
-        self.key = key
-        persist_key_to_port(self.key, self.__class__._PORT)
-        self.PORT = self.__class__._PORT
-        super().__init__(
-            TextColumn("{task.description} {task.percentage:>3.0f}%"),
-            BarColumn(),
-            MofNCompleteColumn(),
-            TextColumn("•"),
-            TimeElapsedColumn(),
-            TextColumn("•"),
-            TimeRemainingColumn(compact=True),
-            *args,
-            **kwargs,
-            refresh_per_second=1 / refresh_every_n_secs if refresh_every_n_secs else 10,
-        )
-        self._initial_columns: Collection[Union[str, ProgressColumn]] = self.columns
-        self._live = live_mode
-
     def get_renderables(self) -> Iterable[RenderableType]:
         for task in self.tasks:
             self.columns = (
@@ -175,13 +147,39 @@ class MultiProgress(Progress):
             )
             yield self.make_tasks_table([task])
 
-    def __enter__(self):
+    def __new__(cls, *args, **kwargs) -> "MultiProgress":
+        if not cls._FIRST_INSTANCE:
+            cls._PORT += 1
+        cls._FIRST_INSTANCE = False
+
+        self = super().__new__(cls)
+        self._called = False
+        self.live_mode = True
+        self._key = "main"
+        self._port = cls._PORT
+
+        return self
+
+    def __call__(self, key: str = "main", live_mode: bool = True) -> "MultiProgress":
+        self._called = True
+        self._key = key
+        self.live_mode = live_mode
+        persist_key_to_port(self._key, self._port)
+        return self
+
+    def __enter__(self) -> "MultiProgress":
         self._id_to_task_id: Dict[Tuple[int, str], TaskID] = {}
         self._ids: List[str] = []
-        if self._live:
+        self._initial_columns: tuple[str | ProgressColumn, ...] = self.columns
+
+        if not self._called:
+            self.__call__()
+
+        if self.live_mode:
             super().__enter__()
 
         def handle_client(conn: Connection):
+            """Progress client handler."""
             while True:
                 try:
                     msg: Optional[
@@ -189,7 +187,7 @@ class MultiProgress(Progress):
                     ] = conn.recv()
                     if isinstance(msg, AddTaskMessage):
                         task_id = self.add_task(
-                            description=msg.desc, total=msg.total, **msg.metrics
+                            description=msg.desc, total=msg.total, **msg.fields
                         )
                         if msg.id in self._ids:
                             raise ProgressInitializationError(
@@ -200,23 +198,32 @@ class MultiProgress(Progress):
                         self.update(
                             self._id_to_task_id[(msg.pid, msg.id)],
                             completed=msg.completed,
-                            **msg.metrics,
+                            advance=msg.advance,
+                            description=msg.desc,
+                            visible=msg.visible,
+                            refresh=msg.refresh,
+                            **msg.fields,
                         )
                 except EOFError:
                     break
 
         def server():
-            listener = Listener((LOCALHOST, self.PORT), authkey=AUTH_KEY, backlog=1000)
+            """The server that handles creating the listener and creating progress client handlers."""
+            listener = Listener((LOCALHOST, self._port), authkey=AUTH_KEY, backlog=1000)
             while True:
-                conn = listener.accept()  # this will block forever
-                msg = conn.recv()
-                if msg == DONE:
+                conn = listener.accept()
+                # ^ This will block forever
+                hello_or_done = conn.recv()
+                # ^ Each progress client will first send the hello message. Only one client (the parent)
+                # process will send the done message, signaling all progress clients are done.
+                if hello_or_done == DONE:
                     listener.close()
                     break
                 client_thread = threading.Thread(
                     target=handle_client, args=(conn,), daemon=True
                 )
                 client_thread.start()
+                # ^ Each thread handles only one progress client
 
         self._server = threading.Thread(
             target=server, daemon=True
@@ -224,16 +231,65 @@ class MultiProgress(Progress):
         self._server.start()
         return self
 
-    def __exit__(self, *args, **kwargs):
-        remove_key(self.key)
+    def __exit__(self, *args, **kwargs) -> None:
+        remove_key(self._key)
+        self._called = False
         super().__exit__(*args, **kwargs)
-        with Client((LOCALHOST, self.PORT), authkey=AUTH_KEY) as conn:
+        with Client((LOCALHOST, self._port), authkey=AUTH_KEY) as conn:
             conn.send(DONE)
         self._server.join()
 
 
 def empty() -> Dict[str, Any]:
     return dict()
+
+
+@contextmanager
+def add_task(
+    desc: str,
+    total: int | None = None,
+    id: str = "",
+    key: str = "main",
+    **fields: Any,
+):
+    id = id or str(threading.get_ident())
+    try:
+        with Client((LOCALHOST, get_port(key)), authkey=AUTH_KEY) as conn:
+            conn.send(HELLO)
+            conn.send(
+                AddTaskMessage(
+                    desc=desc,
+                    fields=fields,
+                    total=total,
+                    pid=os.getpid(),
+                    id=id,
+                )
+            )
+
+            def update(
+                completed: float | None = None,
+                advance: float | None = None,
+                desc: str | None = None,
+                visible: bool = True,
+                refresh: bool = False,
+                **fields: Any,
+            ) -> None:
+                conn.send(
+                    ProgressUpdateMessage(
+                        pid=os.getpid(),
+                        id=id,
+                        fields=fields,
+                        completed=completed,
+                        advance=advance,
+                        desc=desc,
+                        visible=visible,
+                        refresh=refresh,
+                    )
+                )
+
+            yield update
+    finally:
+        ...
 
 
 def progress_bar(
@@ -247,39 +303,10 @@ def progress_bar(
     """
     Used within a MultiProgress context to report progress of an iterable to the parent (or same) process.
     """
-    if total is None:
-        if isinstance(iterable, (list, tuple, dict, set)):
-            total = len(iterable)
-        else:
-            raise ValueError(f"total must be supplied if the iterable's length can't be determined.")
-    if not id:
-        id = str(threading.get_ident())
-    with Client((LOCALHOST, get_port(key)), authkey=AUTH_KEY) as conn:
-        conn.send(HELLO)
-        conn.send(
-            AddTaskMessage(
-                desc=desc,
-                metrics=metrics_func(),
-                total=total,
-                pid=os.getpid(),
-                id=id,
-            )
-        )
-        for i, r in enumerate(iterable):
-            conn.send(
-                ProgressUpdateMessage(
-                    pid=os.getpid(),
-                    id=id,
-                    metrics=metrics_func(),
-                    completed=i + 1,
-                )
-            )
+    if total is None and isinstance(iterable, Sized):
+        total = len(iterable)
+
+    with add_task(desc, total, id, key, **metrics_func()) as update:
+        for r in iterable:
+            update(advance=1, **metrics_func())
             yield r
-        conn.send(
-            ProgressUpdateMessage(
-                pid=os.getpid(),
-                id=id,
-                metrics=metrics_func(),
-                completed=total,
-            )
-        )

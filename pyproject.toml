@@ -5,7 +5,7 @@ description = "Simple to use progress bar with subprocesses and threads."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "rich>=12.0.0",
+    "rich>=13.8.0",
 ]
 
 [project.scripts]
