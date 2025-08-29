@@ -1,5 +1,5 @@
 [project]
-name = "enriched-progress"
+name = "multiprog"
 version = "0.1.4"
 description = "Simple to use progress bar with subprocesses and threads."
 readme = "README.md"
