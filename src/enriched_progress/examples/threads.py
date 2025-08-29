@@ -1,7 +1,7 @@
 import time
 import random
 from concurrent.futures import ThreadPoolExecutor
-from multiprogress import MultiProgress, progress_bar
+from enriched_progress import MultiProgress, progress_bar
 
 
 def do_work(n: int) -> int:

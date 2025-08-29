@@ -1,11 +1,18 @@
 [project]
-name = "multiprog"
+name = "enriched-progress"
 version = "0.1.4"
 description = "Simple to use progress bar with subprocesses and threads."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "rich>=13.8.0",
+    "filelock",
+    "tenacity",
+]
+
+[dependency-groups]
+dev = [
+    "pytest"
 ]
 
 [project.scripts]
@@ -16,4 +23,4 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/multiprogress"]
+packages = ["src/enriched_progress"]

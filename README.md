@@ -1,4 +1,4 @@
-# Multiprogress
+# MultiProgress: the enriched progress bar
 
 A simple to use `progress_bar` in sub-processes or threads using [rich](https://github.com/Textualize/rich).
 See the [examples](./src/multiprogress/examples) folder for more examples.
@@ -7,7 +7,7 @@ See the [examples](./src/multiprogress/examples) folder for more examples.
 import time
 import random
 from concurrent.futures import ProcessPoolExecutor
-from multiprogress import MultiProgress, progress_bar
+from enriched_progress import MultiProgress, progress_bar
 
 
 def do_work(n: int) -> int:
@@ -44,7 +44,7 @@ from rich.console import Console, Group
 from rich.live import Live
 from rich.panel import Panel
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from multiprogress import MultiProgress, progress_bar
+from enriched_progress import MultiProgress, progress_bar
 import random
 import os
 

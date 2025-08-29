@@ -18,6 +18,7 @@ from typing import (
 import tempfile
 from pathlib import Path
 import pickle
+from tenacity import retry, stop_after_attempt, wait_fixed
 
 from rich.console import RenderableType
 from rich.progress import (
@@ -30,6 +31,7 @@ from rich.logging import RichHandler
 import atexit
 from contextlib import contextmanager
 import logging
+from filelock import FileLock
 
 logging.basicConfig(
     format="(%(process)d) %(levelname)s: %(message)s", 
@@ -46,18 +48,25 @@ AUTH_KEY: Final = b"progress-bar-secret-key"
 
 T = TypeVar("T")
 
-def _delete_progress_keys_to_ports():
-    PROGRESS_KEYS_TO_PORTS_FILE.unlink()
-    logger.debug(f"{PROGRESS_KEYS_TO_PORTS_FILE} has been deleted.")
 
-PROGRESS_KEYS_TO_PORTS_FILE = (
+def _delete_files():
+    PROGRESS_KEYS_TO_PORTS_FILE.unlink()
+    LOCK_FILE.unlink()
+    logger.debug(f"{PROGRESS_KEYS_TO_PORTS_FILE} and {LOCK_FILE} have been deleted.")
+
+LOCK_FILE: Final = Path(tempfile.gettempdir()) / "progress_keys_to_ports.pickle.lock"
+LOCK: Final = FileLock(LOCK_FILE)
+LOCK_TIMEOUT_SECS: Final = 20
+PROGRESS_KEYS_TO_PORTS_FILE: Final = (
     Path(tempfile.gettempdir()) / "progress_keys_to_ports.pickle"
 )
 if not PROGRESS_KEYS_TO_PORTS_FILE.exists():
-    with open(PROGRESS_KEYS_TO_PORTS_FILE, "wb+") as f:
-        pickle.dump({}, f)
-    logger.debug(f"{PROGRESS_KEYS_TO_PORTS_FILE} created.")
-    atexit.register(_delete_progress_keys_to_ports)
+    with LOCK.acquire(timeout=LOCK_TIMEOUT_SECS):
+        with open(PROGRESS_KEYS_TO_PORTS_FILE, "wb+") as f:
+            pickle.dump({}, f)
+        logger.debug(f"{PROGRESS_KEYS_TO_PORTS_FILE} created.")
+        atexit.register(_delete_files)
+
 
 class ProgressInitializationError(Exception):
     pass
@@ -70,27 +79,29 @@ def join(items: List[T], sep: T) -> List[T]:
 
 
 def persist_key_to_port(key: str, port: int) -> None:
-    with open(PROGRESS_KEYS_TO_PORTS_FILE, "rb") as f:
-        keys_to_ports: dict = pickle.load(f)
-    if key in keys_to_ports:
-        raise ValueError(
-            f"{key} is not a unique progress key. Current keys are: {keys_to_ports.keys()}."
-        )
-    keys_to_ports[key] = port
-    with open(PROGRESS_KEYS_TO_PORTS_FILE, "wb") as f:
-        pickle.dump(keys_to_ports, f)
-    logger.debug(f"{key} assigned port number {port}.")
+    with LOCK.acquire(timeout=LOCK_TIMEOUT_SECS):
+        with open(PROGRESS_KEYS_TO_PORTS_FILE, "rb") as f:
+            keys_to_ports: dict = pickle.load(f)
+        if key in keys_to_ports:
+            raise ValueError(
+                f"{key} is not a unique progress key. Current keys are: {keys_to_ports.keys()}."
+            )
+        keys_to_ports[key] = port
+        with open(PROGRESS_KEYS_TO_PORTS_FILE, "wb") as f:
+            pickle.dump(keys_to_ports, f)
+        logger.debug(f"{key} assigned port number {port}.")
 
 
 def remove_key(key: str) -> None:
-    with open(PROGRESS_KEYS_TO_PORTS_FILE, "rb") as f:
-        keys_to_ports: dict = pickle.load(f)
-    if key not in keys_to_ports:
-        raise ValueError(f"{key} is not a key in: {keys_to_ports.keys()}.")
-    keys_to_ports.pop(key)
-    with open(PROGRESS_KEYS_TO_PORTS_FILE, "wb") as f:
-        pickle.dump(keys_to_ports, f)
-    logger.debug(f"{key} removed from port mapping file.")
+    with LOCK.acquire(timeout=LOCK_TIMEOUT_SECS):
+        with open(PROGRESS_KEYS_TO_PORTS_FILE, "rb") as f:
+            keys_to_ports: dict = pickle.load(f)
+        if key not in keys_to_ports:
+            raise ValueError(f"{key} is not a key in: {keys_to_ports.keys()}.")
+        keys_to_ports.pop(key)
+        with open(PROGRESS_KEYS_TO_PORTS_FILE, "wb") as f:
+            pickle.dump(keys_to_ports, f)
+        logger.debug(f"{key} removed from port mapping file.")
 
 
 def get_port(key: str) -> int:
@@ -180,6 +191,7 @@ class MultiProgress(Progress):
         self._key = key
         self.live_mode = live_mode
         persist_key_to_port(self._key, self._port)
+        self.live.vertical_overflow = "visible"
         return self
 
     def __enter__(self) -> "MultiProgress":
@@ -224,7 +236,9 @@ class MultiProgress(Progress):
 
         def server():
             """The server that handles creating the listener and creating progress client handlers."""
-            listener = Listener((LOCALHOST, self._port), authkey=AUTH_KEY, backlog=1000)
+            listener = Listener((LOCALHOST, self._port), authkey=AUTH_KEY, backlog=10_000)
+            # ^ TODO: read more docs on backlog and this module.
+            logger.debug(f"Listener server started on port {self._port}")
             while True:
                 conn = listener.accept()
                 # ^ This will block forever
@@ -259,6 +273,11 @@ def empty() -> Dict[str, Any]:
     return dict()
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_fixed(.1))
+def _get_client(port: int):
+    return Client((LOCALHOST, port), authkey=AUTH_KEY)
+
+
 @contextmanager
 def add_task(
     desc: str,
@@ -269,7 +288,9 @@ def add_task(
 ):
     id = id or str(threading.get_ident())
     try:
-        with Client((LOCALHOST, get_port(key)), authkey=AUTH_KEY) as conn:
+        port = get_port(key)
+        logger.debug(f"{id} is trying to connect to the server on port {port}")
+        with _get_client(port) as conn:
             conn.send(HELLO)
             conn.send(
                 AddTaskMessage(

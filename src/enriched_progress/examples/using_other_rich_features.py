@@ -3,7 +3,7 @@ from rich.console import Console, Group
 from rich.live import Live
 from rich.panel import Panel
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from multiprogress import MultiProgress, progress_bar
+from enriched_progress import MultiProgress, progress_bar
 import random
 import os
 

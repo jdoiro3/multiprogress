@@ -1,7 +1,7 @@
 import time
 import random
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
-from multiprogress import MultiProgress, progress_bar
+from enriched_progress import MultiProgress, progress_bar
 from itertools import chain
 from rich import print
 from rich.layout import Layout
