@@ -26,8 +26,17 @@ from rich.progress import (
     TextColumn,
     ProgressColumn,
 )
+from rich.logging import RichHandler
 import atexit
 from contextlib import contextmanager
+import logging
+
+logging.basicConfig(
+    format="(%(process)d) %(levelname)s: %(message)s", 
+    level=logging.INFO,
+    handlers=[RichHandler()]
+)
+logger = logging.getLogger(__name__)
 
 DONE: Final = "DONE"
 HELLO: Final = "HELLO"
@@ -37,14 +46,18 @@ AUTH_KEY: Final = b"progress-bar-secret-key"
 
 T = TypeVar("T")
 
+def _delete_progress_keys_to_ports():
+    PROGRESS_KEYS_TO_PORTS_FILE.unlink()
+    logger.debug(f"{PROGRESS_KEYS_TO_PORTS_FILE} has been deleted.")
+
 PROGRESS_KEYS_TO_PORTS_FILE = (
     Path(tempfile.gettempdir()) / "progress_keys_to_ports.pickle"
 )
 if not PROGRESS_KEYS_TO_PORTS_FILE.exists():
     with open(PROGRESS_KEYS_TO_PORTS_FILE, "wb+") as f:
         pickle.dump({}, f)
-    atexit.register(PROGRESS_KEYS_TO_PORTS_FILE.unlink)
-
+    logger.debug(f"{PROGRESS_KEYS_TO_PORTS_FILE} created.")
+    atexit.register(_delete_progress_keys_to_ports)
 
 class ProgressInitializationError(Exception):
     pass
@@ -66,6 +79,7 @@ def persist_key_to_port(key: str, port: int) -> None:
     keys_to_ports[key] = port
     with open(PROGRESS_KEYS_TO_PORTS_FILE, "wb") as f:
         pickle.dump(keys_to_ports, f)
+    logger.debug(f"{key} assigned port number {port}.")
 
 
 def remove_key(key: str) -> None:
@@ -76,12 +90,15 @@ def remove_key(key: str) -> None:
     keys_to_ports.pop(key)
     with open(PROGRESS_KEYS_TO_PORTS_FILE, "wb") as f:
         pickle.dump(keys_to_ports, f)
+    logger.debug(f"{key} removed from port mapping file.")
 
 
 def get_port(key: str) -> int:
     with open(PROGRESS_KEYS_TO_PORTS_FILE, "rb") as f:
         keys_to_ports: dict = pickle.load(f)
-    return keys_to_ports[key]
+    port = keys_to_ports[key]
+    logger.debug(f"got {key}'s port number, {port}.")
+    return port
 
 
 @dataclass
