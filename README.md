@@ -82,4 +82,4 @@ if __name__ == "__main__":
     demo()
 ```
 
-[![asciicast](https://asciinema.org/a/655OZvrGusWRldzpHGjhOjhOD.svg)](https://asciinema.org/a/655OZvrGusWRldzpHGjhOjhOD)
+
