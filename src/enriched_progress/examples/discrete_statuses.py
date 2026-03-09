@@ -10,15 +10,17 @@ from rich.columns import Columns
 
 
 stages = [
-    "[bold grey]Initializing[/]", 
-    "[bold magenta]Downloading[/]", 
-    "[bold blue]Processing[/]", 
-    "[bold green]Finalizing[/]"
+    "[bold grey]Initializing[/]",
+    "[bold magenta]Downloading[/]",
+    "[bold blue]Processing[/]",
+    "[bold green]Finalizing[/]",
 ]
 
 
 def work(status_name: str) -> str:
-    with add_task(f"Working on task for {status_name}", total=1, stage="Starting") as update:
+    with add_task(
+        f"Working on task for {status_name}", total=1, stage="Starting"
+    ) as update:
         for stage in stages:
             time.sleep(random.random() * 10)
             update(stage=stage)
@@ -37,15 +39,16 @@ def demo() -> None:
         )(live_mode=False) as mp,
         Live(
             Panel(
-                Columns([
+                Columns(
+                    [
                         Panel(Group(status, mp), title="Tasks", style="bold white"),
                         Panel("CPU: 24%", title="Processor", style="bold green"),
                         Panel("RAM: 13%", title="Memory", style="bold magenta"),
-                        Panel("Disk: 10%", title="Storage", style="bold red")
+                        Panel("Disk: 10%", title="Storage", style="bold red"),
                     ]
                 ),
                 title="Job 123",
-                style="bold white"
+                style="bold white",
             )
         ),
     ):

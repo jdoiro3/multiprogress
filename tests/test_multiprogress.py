@@ -29,9 +29,7 @@ def multi_prog() -> MultiProgress:
 
 
 def do_work(n: int) -> None:
-    for _ in progress_bar(
-        range(n+1), desc=str(n+1), id=str(n)
-    ):
+    for _ in progress_bar(range(n + 1), desc=str(n + 1), id=str(n)):
         ...
 
 

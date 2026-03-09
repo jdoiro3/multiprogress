@@ -23,9 +23,9 @@ import logging
 from filelock import FileLock
 
 logging.basicConfig(
-    format="(%(process)d) %(levelname)s: %(message)s", 
+    format="(%(process)d) %(levelname)s: %(message)s",
     level=logging.INFO,
-    handlers=[RichHandler()]
+    handlers=[RichHandler()],
 )
 logger = logging.getLogger(__name__)
 
@@ -163,16 +163,18 @@ class MultiProgress(Progress):
                                     extra_columns.items(), key=lambda item: item[0]
                                 )
                             ],
-                            TextColumn("•")
-                        )
-                    ] 
+                            TextColumn("•"),
+                        ),
+                    ]
                     if (extra_columns := task.fields.get("extra_columns", {}))
                     else []
-                )
+                ),
             )
             yield self.make_tasks_table([task])
 
-    def __new__(cls: ty.Type["MultiProgress"], *args: ty.Any, **kwargs: ty.Any) -> "MultiProgress":
+    def __new__(
+        cls: ty.Type["MultiProgress"], *args: ty.Any, **kwargs: ty.Any
+    ) -> "MultiProgress":
         if not cls._FIRST_INSTANCE:
             cls._PORT += 1
         cls._FIRST_INSTANCE = False
@@ -230,14 +232,16 @@ class MultiProgress(Progress):
                             visible=msg.visible,
                             refresh=msg.refresh,
                             extra_columns=extra_columns,
-                            **fields
+                            **fields,
                         )
                 except EOFError:
                     break
 
         def server():
             """The server that handles creating the listener and creating progress client handlers."""
-            listener = Listener((LOCALHOST, self._port), authkey=AUTH_KEY, backlog=10_000)
+            listener = Listener(
+                (LOCALHOST, self._port), authkey=AUTH_KEY, backlog=10_000
+            )
             # ^ TODO: read more docs on backlog and this module.
             logger.debug(f"Listener server started on port {self._port}")
             while True:
@@ -274,7 +278,7 @@ def empty() -> dict[str, ty.Any]:
     return dict()
 
 
-@retry(stop=stop_after_attempt(5), wait=wait_fixed(.1))
+@retry(stop=stop_after_attempt(5), wait=wait_fixed(0.1))
 def _get_client(port: int):
     return Client((LOCALHOST, port), authkey=AUTH_KEY)
 
