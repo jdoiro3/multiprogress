@@ -3,18 +3,7 @@ import threading
 from dataclasses import dataclass
 from multiprocessing.connection import Connection, Listener, Client
 from collections.abc import Sized
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Iterable,
-    List,
-    Optional,
-    Tuple,
-    Union,
-    Final,
-    TypeVar,
-)
+import typing as ty
 import tempfile
 from pathlib import Path
 import pickle
@@ -40,24 +29,27 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-DONE: Final = "DONE"
-HELLO: Final = "HELLO"
-LOCALHOST: Final = "localhost"
-PORT: Final = 6000
-AUTH_KEY: Final = b"progress-bar-secret-key"
+DONE: ty.Final = "DONE"
+HELLO: ty.Final = "HELLO"
+LOCALHOST: ty.Final = "localhost"
+PORT: ty.Final = 6000
+AUTH_KEY: ty.Final = b"progress-bar-secret-key"
 
-T = TypeVar("T")
+T = ty.TypeVar("T")
 
 
 def _delete_files():
-    PROGRESS_KEYS_TO_PORTS_FILE.unlink()
-    LOCK_FILE.unlink()
+    if PROGRESS_KEYS_TO_PORTS_FILE.exists():
+        PROGRESS_KEYS_TO_PORTS_FILE.unlink()
+    if LOCK_FILE.exists():
+        LOCK_FILE.unlink()
     logger.debug(f"{PROGRESS_KEYS_TO_PORTS_FILE} and {LOCK_FILE} have been deleted.")
 
-LOCK_FILE: Final = Path(tempfile.gettempdir()) / "progress_keys_to_ports.pickle.lock"
-LOCK: Final = FileLock(LOCK_FILE)
-LOCK_TIMEOUT_SECS: Final = 20
-PROGRESS_KEYS_TO_PORTS_FILE: Final = (
+
+LOCK_FILE: ty.Final = Path(tempfile.gettempdir()) / "progress_keys_to_ports.pickle.lock"
+LOCK: ty.Final = FileLock(LOCK_FILE)
+LOCK_TIMEOUT_SECS: ty.Final = 20
+PROGRESS_KEYS_TO_PORTS_FILE: ty.Final = (
     Path(tempfile.gettempdir()) / "progress_keys_to_ports.pickle"
 )
 if not PROGRESS_KEYS_TO_PORTS_FILE.exists():
@@ -72,7 +64,7 @@ class ProgressInitializationError(Exception):
     pass
 
 
-def join(items: List[T], sep: T) -> List[T]:
+def join(items: list[T], sep: T) -> list[T]:
     r = [sep] * (len(items) * 2 - 1)
     r[0::2] = items
     return r
@@ -81,7 +73,7 @@ def join(items: List[T], sep: T) -> List[T]:
 def persist_key_to_port(key: str, port: int) -> None:
     with LOCK.acquire(timeout=LOCK_TIMEOUT_SECS):
         with open(PROGRESS_KEYS_TO_PORTS_FILE, "rb") as f:
-            keys_to_ports: dict = pickle.load(f)
+            keys_to_ports: dict[str, int] = pickle.load(f)
         if key in keys_to_ports:
             raise ValueError(
                 f"{key} is not a unique progress key. Current keys are: {keys_to_ports.keys()}."
@@ -95,7 +87,7 @@ def persist_key_to_port(key: str, port: int) -> None:
 def remove_key(key: str) -> None:
     with LOCK.acquire(timeout=LOCK_TIMEOUT_SECS):
         with open(PROGRESS_KEYS_TO_PORTS_FILE, "rb") as f:
-            keys_to_ports: dict = pickle.load(f)
+            keys_to_ports: dict[str, int] = pickle.load(f)
         if key not in keys_to_ports:
             raise ValueError(f"{key} is not a key in: {keys_to_ports.keys()}.")
         keys_to_ports.pop(key)
@@ -106,7 +98,7 @@ def remove_key(key: str) -> None:
 
 def get_port(key: str) -> int:
     with open(PROGRESS_KEYS_TO_PORTS_FILE, "rb") as f:
-        keys_to_ports: dict = pickle.load(f)
+        keys_to_ports: dict[str, int] = pickle.load(f)
     port = keys_to_ports[key]
     logger.debug(f"got {key}'s port number, {port}.")
     return port
@@ -115,7 +107,7 @@ def get_port(key: str) -> int:
 @dataclass
 class AddTaskMessage:
     desc: str
-    fields: Dict[str, Any]
+    fields: dict[str, ty.Any]
     total: float | None
     pid: int
     id: str
@@ -125,7 +117,8 @@ class AddTaskMessage:
 class ProgressUpdateMessage:
     id: str
     pid: int
-    fields: Dict[str, Any]
+    fields: dict[str, ty.Any]
+    total: float | None = None
     completed: float | None = None
     advance: float | None = None
     desc: str | None = None
@@ -156,24 +149,30 @@ class MultiProgress(Progress):
     _PORT = PORT
     _FIRST_INSTANCE = True
 
-    def get_renderables(self) -> Iterable[RenderableType]:
+    def get_renderables(self) -> ty.Iterable[RenderableType]:
         for task in self.tasks:
             self.columns = (
                 *self._initial_columns,
-                TextColumn("•"),
-                *join(
+                *(
                     [
-                        TextColumn(f"{v} {k}")
-                        for k, v in sorted(
-                            task.fields.items(), key=lambda item: item[0]
+                        TextColumn("•"),
+                        *join(
+                            [
+                                TextColumn(f"{v} {k}")
+                                for k, v in sorted(
+                                    extra_columns.items(), key=lambda item: item[0]
+                                )
+                            ],
+                            TextColumn("•")
                         )
-                    ],
-                    TextColumn("•"),
-                ),
+                    ] 
+                    if (extra_columns := task.fields.get("extra_columns", {}))
+                    else []
+                )
             )
             yield self.make_tasks_table([task])
 
-    def __new__(cls, *args, **kwargs) -> "MultiProgress":
+    def __new__(cls: ty.Type["MultiProgress"], *args: ty.Any, **kwargs: ty.Any) -> "MultiProgress":
         if not cls._FIRST_INSTANCE:
             cls._PORT += 1
         cls._FIRST_INSTANCE = False
@@ -195,8 +194,8 @@ class MultiProgress(Progress):
         return self
 
     def __enter__(self) -> "MultiProgress":
-        self._id_to_task_id: Dict[Tuple[int, str], TaskID] = {}
-        self._ids: List[str] = []
+        self._id_to_task_id: dict[tuple[int, str], TaskID] = {}
+        self._ids: list[str] = []
         self._initial_columns: tuple[str | ProgressColumn, ...] = self.columns
 
         if not self._called:
@@ -209,9 +208,7 @@ class MultiProgress(Progress):
             """Progress client handler."""
             while True:
                 try:
-                    msg: Optional[
-                        Union[AddTaskMessage, ProgressUpdateMessage]
-                    ] = conn.recv()
+                    msg: AddTaskMessage | ProgressUpdateMessage | None = conn.recv()
                     if isinstance(msg, AddTaskMessage):
                         task_id = self.add_task(
                             description=msg.desc, total=msg.total, **msg.fields
@@ -222,14 +219,18 @@ class MultiProgress(Progress):
                             )
                         self._id_to_task_id[(msg.pid, msg.id)] = task_id
                     elif isinstance(msg, ProgressUpdateMessage):
+                        fields = msg.fields.copy()
+                        extra_columns = fields.pop("extra_columns", {})
                         self.update(
                             self._id_to_task_id[(msg.pid, msg.id)],
+                            total=msg.total,
                             completed=msg.completed,
                             advance=msg.advance,
                             description=msg.desc,
                             visible=msg.visible,
                             refresh=msg.refresh,
-                            **msg.fields,
+                            extra_columns=extra_columns,
+                            **fields
                         )
                 except EOFError:
                     break
@@ -269,7 +270,7 @@ class MultiProgress(Progress):
         self._server.join()
 
 
-def empty() -> Dict[str, Any]:
+def empty() -> dict[str, ty.Any]:
     return dict()
 
 
@@ -284,7 +285,7 @@ def add_task(
     total: int | None = None,
     id: str = "",
     key: str = "main",
-    **fields: Any,
+    **fields: ty.Any,
 ):
     id = id or str(threading.get_ident())
     try:
@@ -308,13 +309,15 @@ def add_task(
                 desc: str | None = None,
                 visible: bool = True,
                 refresh: bool = False,
-                **fields: Any,
+                total: float | None = None,
+                **fields: ty.Any,
             ) -> None:
                 conn.send(
                     ProgressUpdateMessage(
                         pid=os.getpid(),
                         id=id,
                         fields=fields,
+                        total=total,
                         completed=completed,
                         advance=advance,
                         desc=desc,
@@ -329,20 +332,20 @@ def add_task(
 
 
 def progress_bar(
-    iterable: Iterable[T],
+    iterable: ty.Iterable[T],
     desc: str,
     total: int | None = None,
-    metrics_func: Callable[[], Dict[str, Any]] = empty,
+    metrics_func: ty.Callable[[], dict[str, ty.Any]] = empty,
     id: str = "",
     key: str = "main",
-) -> Iterable[T]:
+) -> ty.Iterable[T]:
     """
     Used within a MultiProgress context to report progress of an iterable to the parent (or same) process.
     """
     if total is None and isinstance(iterable, Sized):
         total = len(iterable)
 
-    with add_task(desc, total, id, key, **metrics_func()) as update:
+    with add_task(desc, total, id, key, extra_columns=metrics_func()) as update:
         for r in iterable:
-            update(advance=1, **metrics_func())
+            update(advance=1, extra_columns=metrics_func())
             yield r
